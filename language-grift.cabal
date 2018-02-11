@@ -10,7 +10,6 @@ maintainer:          diaa6510@gmail.com
 -- copyright:           
 category:            Language
 build-type:          Simple
-extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library

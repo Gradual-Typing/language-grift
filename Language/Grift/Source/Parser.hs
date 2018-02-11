@@ -6,9 +6,9 @@
 
 module Language.Grift.Source.Parser (parser) where
 
-import           Control.Monad      (void)
+import           Control.Monad                              (void)
 import           Text.Parsec
-import           Text.Parsec.String (Parser)
+import           Text.Parsec.String                         (Parser)
 
 import           Language.Grift.Source.Parser.WithSourcePos
 import           Language.Grift.Source.Syntax
