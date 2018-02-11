@@ -1,6 +1,6 @@
 module Language.Grift.Source.Parser.WithSourcePos( TypeWithLoc
-                                          , ExpF1
-                                          , L1) where
+                                                 , ExpF1
+                                                 , L1) where
 
 import           Text.Parsec.Pos (SourcePos)
 
