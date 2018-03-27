@@ -237,8 +237,8 @@ opsParser = op2Parser "+ " Plus
             <|> op2Parser "fl>= " GeF
             <|> op2Parser "flmin " MinF
             <|> op2Parser "flmax " MaxF
-            <|> op1Parser "flfloor " RoundF
-            <|> op1Parser "flround " FloorF
+            <|> op1Parser "flround " RoundF
+            <|> op1Parser "flfloor " FloorF
             <|> op1Parser "flceiling " CeilingF
             <|> op1Parser "fltruncate " TruncateF
             <|> op1Parser "flsin " SinF
