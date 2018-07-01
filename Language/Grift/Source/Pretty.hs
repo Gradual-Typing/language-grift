@@ -172,6 +172,8 @@ instance Pretty t => Pretty (Type t) where
   ppe (GVectTy t)  = parens $ text "GVect" <+> ppe t
   ppe (MVectTy t)  = parens $ text "MVect" <+> ppe t
   ppe (TupleTy ts) = parens $ text "Tuple" <+> hsep (map ppe ts)
+  ppe (VarTy x)    = text x
+  ppe (RecTy x t)  = parens $ text "Rec" <+> text x <+> ppe t
 
 codeGen :: Pretty p => p -> String
 codeGen = render . ppe

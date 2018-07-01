@@ -440,7 +440,8 @@ expParser = try floatParser
 
 refTyParser,vectTyParser,grefTyParser,mrefTyParser,gvectTyParser
   ,mvectTyParser,intTyParser,boolTyParser,dynTyParser,unitTyParser
-  ,funTyParser,floatTyParser,charTyParser,tupleTyParser,typeParser
+  ,funTyParser,floatTyParser,charTyParser,tupleTyParser, varTyParser
+  , recTyParser, typeParser
    :: Parser TypeWithLoc
 
 charTyParser   = annotate $ CharTy <$ try (string "Char")
@@ -452,7 +453,7 @@ unitTyParser   = annotate $ UnitTy <$ try (string "()" <|> string "Unit")
 funTyParser    = do
   src <- getPosition
   char '('
-  ts <- sepEndBy typeParser whitespace
+  ts <- try (sepEndBy typeParser whitespace)
   string "-> "
   rt <- typeParser
   char ')'
@@ -460,10 +461,21 @@ funTyParser    = do
 
 tupleTyParser = do
   src <- getPosition
-  string "(Tuple "
+  try (string "(Tuple ")
   ts <- sepEndBy typeParser whitespace
   char ')'
   return $ Ann src $ TupleTy ts
+
+varTyParser = annotate $ VarTy <$> try idParser
+
+recTyParser = do
+  src <- getPosition
+  try (string "(Rec ")
+  tvar <- idParser
+  whitespace
+  t <- typeParser
+  char ')'
+  return $ Ann src $ RecTy tvar t
 
 refTyParser   = annotate $ RefTy <$ try (string "(Ref ") <*> typeParser <* char ')'
 vectTyParser  = annotate $ VectTy <$ try (string "(Vect ") <*> typeParser <* char ')'
@@ -486,6 +498,8 @@ typeParser = charTyParser
              <|> gvectTyParser
              <|> mvectTyParser
              <|> tupleTyParser
+             <|> recTyParser
+             <|> varTyParser
 
 schmlParser :: Parser L1
 schmlParser = id <$ whitespace <*> topLevParser <* whitespace <* eof
