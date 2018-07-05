@@ -105,7 +105,7 @@ data Type t =
   | GVectTy t
   | MVectTy t
   | TupleTy [t]
-  deriving (Eq,Show,Functor)
+  deriving (Eq,Show,Functor,Foldable,Traversable)
 
 deriving instance (Show a, Show (e (Ann a e))) => Show (Ann a e)
 deriving instance (Show a, Show t) => Show (ExpF t (Ann a (ExpF t)))
