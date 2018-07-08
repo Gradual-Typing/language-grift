@@ -17,6 +17,7 @@ library
                      , Language.Grift.Source.Pretty
                      , Language.Grift.Source.Parser.WithSourcePos
                      , Language.Grift.Source.Syntax
+                     , Language.Grift.Source.Utils
   -- other-modules:       
   other-extensions:    FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, NoMonomorphismRestriction, TypeSynonymInstances, UndecidableInstances, DeriveFoldable, DeriveFunctor, DeriveTraversable, StandaloneDeriving, TemplateHaskell
   build-depends:       base
