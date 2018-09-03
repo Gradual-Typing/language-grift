@@ -8,6 +8,8 @@ module Language.Grift.Source.Pretty (
   , Pretty
   ) where
 
+import           Prelude hiding ((<>))
+
 import           Text.PrettyPrint
 
 import           Language.Grift.Source.Syntax
