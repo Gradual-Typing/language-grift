@@ -90,7 +90,7 @@ instance (Pretty e, Show a) => Pretty (ExpF (Ann a Type) e) where
   ppe (TupleProj e i)            = parens $ text "tuple-proj" <+> ppe e <+> int i
   ppe (Let bs e)                 = parens $ text "let" <+> parens (vcat' (map ppe bs)) $+$ indent (ppe e)
   ppe (Letrec bs e)              = parens $ text "letrec" <+> parens (vcat' (map ppe bs)) $+$ indent (ppe e)
-  ppe (As e t)                   = parens $ ppe e <+> char ':' <+> ppe t
+  ppe (As e t)                   = parens $ char ':' <+> ppe e <+> ppe t
   ppe (Begin es e)               = parens $ text "begin" $+$ indent (vcat' $ map ppe es) $+$ indent (ppe e)
   ppe (Repeat x a e1 e2 e b (Ann _ t)) =
     parens $ text "repeat" <+> parens (text x <+> ppe e1 <+> ppe e2)
