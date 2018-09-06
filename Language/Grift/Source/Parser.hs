@@ -325,7 +325,7 @@ asParser = do
   src <- getPosition
   try (string "(: ")
   e <- expParser
-  space
+  whitespace
   t <- typeParser
   char ')'
   return $ Ann src $ As e t
