@@ -501,11 +501,11 @@ typeParser = charTyParser
              <|> recTyParser
              <|> varTyParser
 
-schmlParser :: Parser L1
-schmlParser = id <$ whitespace <*> topLevParser <* whitespace <* eof
+griftParser :: Parser L1
+griftParser = id <$ whitespace <*> topLevParser <* whitespace <* eof
 
 parser :: String -> Either ParseError L1
-parser = parse schmlParser ""
+parser = parse griftParser ""
 
 -- main :: IO ()
--- main = parseTest schmlParser "(letrec ([x : (Int Int -> Int) (lambda ([x : Int] [y : Int]) : Int (* x (: -2 Int)))] [y : Bool #f]) (let ([z : Int 5] [t : () ()]) (if (> 3 1) (x z) 0)))"
+-- main = parseTest griftParser "(letrec ([x : (Int Int -> Int) (lambda ([x : Int] [y : Int]) : Int (* x (: -2 Int)))] [y : Bool #f]) (let ([z : Int 5] [t : () ()]) (if (> 3 1) (x z) 0)))"
