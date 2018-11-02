@@ -46,6 +46,12 @@ instance (Pretty e, Show a) => Pretty (ExpF (Ann a Type) e) where
   ppe (If e1 e2 e3)              = parens $ text "if" <+> ppe e1 $+$ indent (ppe e2) $+$ indent (ppe e3)
   ppe (App e1 es)                = parens $ ppe e1 <+> hsep (map ppe es)
   ppe (TopLevel d es)            = vcat' (map ppe d) $+$ indent (vcat' $ map ppe es)
+  ppe (Module name imports exports defs es) = 
+    parens (text "module" <+> text name $+$ 
+            (parens (text "imports") $+$ vcat' (map ppe imports)) $+$
+            (if null exports then empty
+             else parens (text "exports") $+$ vcat' (map ppe exports)) $+$
+            vcat' (map ppe defs) $+$ indent (vcat' $ map ppe es))
   ppe (Lam xs e (Ann _ (ArrTy ts (Ann _ t))))    =
     parens (text "lambda" <+> parens
             (vcat' (zipWith pparg xs ts)) <+>

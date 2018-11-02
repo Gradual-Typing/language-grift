@@ -24,7 +24,7 @@ reservedNames =
    "mvector-ref","mvector-set!","box",
    "box-set!","unbox","vector","vector-ref",
    "vector-set!","repeat","time",
-   "read-int"]
+   "read-int", "module"]
 
 -- Utilities
 
@@ -139,8 +139,8 @@ ifParser,varParser,appParser,opsParser,intParser,boolParser
    vectsetParser,gvectParser,gvectrefParser,
    gvectsetParser,mvectParser,mvectrefParser,mvectsetParser,asParser,
    beginParser,repeatParser,unitParser,timeParser,topLevParser,
-   floatParser,charParser,tupleParser,tupleProjParser, dconstParser,
-   dlamParser,bindParser :: Parser L1
+   floatParser,charParser,tupleParser,tupleProjParser,dconstParser,
+   dlamParser,bindParser,moduleParser :: Parser L1
 
 bindParser = do
   src <- getPosition
@@ -394,9 +394,24 @@ repeatParser = do
 
 topLevParser = do
   src <- getPosition
-  ds <- sepEndBy (dlamParser <|> dconstParser) whitespace
+  ds <- sepEndBy (moduleParser <|> dlamParser <|> dconstParser) whitespace
   es <- sepEndBy expParser whitespace
   return $ Ann src $ TopLevel ds es
+
+moduleParser = do
+  src <- getPosition
+  try $ string "(module"
+  whitespace
+  name <- idParser
+  whitespace
+  imports <- option [] $ try (string "(imports") *> whitespace *> sepEndBy idParser whitespace <* char ')'
+  whitespace
+  exports <- option [] $ try (string "(exports") *> whitespace *> sepEndBy idParser whitespace <* char ')'
+  whitespace
+  defs <- sepEndBy (dlamParser <|> dconstParser) whitespace
+  exps <- sepEndBy expParser whitespace
+  char ')'
+  return $ Ann src $ Module name imports exports defs exps
 
 expParser :: Parser L1
 expParser = try floatParser

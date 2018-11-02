@@ -43,6 +43,7 @@ data ExpF t e =
   | Repeat Name Name e e e e t
   | Op Operator [e]
   | TopLevel [e] [e]
+  | Module Name [Name] [Name] [e] [e] -- module name [names of imported modules] [exported definitions] [definitions] [expressions]
   | If e e e
   | App e [e]
   | Ref e
