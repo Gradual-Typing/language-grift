@@ -10,7 +10,7 @@ module Language.Grift.Source.Parser (parseGriftProgram) where
 import           Control.Exception                          (Exception, throwIO)
 import           Control.Monad                              (void)
 import qualified Control.Monad.State.Lazy as ST
-import           Data.List                                  (foldl')
+import           Data.List                                  (foldl', reverse)
 import qualified Data.Set as Set
 import           Data.Stack
 import qualified Data.Text as Text
@@ -569,7 +569,7 @@ parseGriftProgram = parseMain
             Module m -> do
               let filePath = Path.fromText $ Text.pack path
               let initialState = ParseGriftState Set.empty $ addImports stackNew filePath $ C.moduleImports m
-              (C.Modules . (m:)) <$> ST.evalStateT parseModules initialState
+              (C.Modules . reverse . (m:)) <$> ST.evalStateT parseModules initialState
 
     -- TODO: investigate piggy backing on the parser state
     parseModules :: ST.StateT ParseGriftState IO [Module1]
