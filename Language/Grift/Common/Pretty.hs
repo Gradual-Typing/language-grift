@@ -36,13 +36,15 @@ instance Pretty (e (Ann a e)) => Pretty (Ann a e) where
 
 instance Pretty e => Pretty (ProgramF e) where
   ppe (Script scope) = ppe scope
-  ppe (Modules modules) = vcat' $ map ppe modules
+  ppe (Modules modules) = vcat' $ map (($+$ text "") . ppe) modules
 
 instance Pretty e => Pretty (ScopeF e) where
   ppe (Scope d es) = vcat' (map ppe d) $+$ vcat' (map ppe es)
 
 instance Pretty e => Pretty (ModuleF e) where
-  ppe (Module _ _ _ defs es) = ppe (Scope defs es)
+  ppe (Module name _ _ defs es) =
+    let sepComment = ppe $ replicate 20 '-'
+    in text ";;" <> sepComment <+> ppe name <+> text "module" <+> sepComment $+$ vcat' (map ppe defs) $+$ vcat' (map ppe es)
 -- code generation to grift modules is disabled because Grift does not support modules yet
   -- ppe (Module name imports exports defs es) = 
   --   parens (text "module" <+> text name $+$ 
