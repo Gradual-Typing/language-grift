@@ -584,7 +584,7 @@ parseGriftProgram = parseMain
           let visitedModulesSet = visitedModules state'
           let visited = Set.member path visitedModulesSet
           if visited
-             then return []
+             then parseModules
              else do
                let state'' = state' { visitedModules = Set.insert path visitedModulesSet }
                ST.put state''
