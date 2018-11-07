@@ -2,14 +2,25 @@
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
-module Language.Grift.Source.Parser (parser) where
+module Language.Grift.Source.Parser (parseGriftProgram) where
 
+import           Control.Exception                          (Exception, throwIO)
 import           Control.Monad                              (void)
+import qualified Control.Monad.State.Lazy as ST
+import           Data.List                                  (foldl')
+import qualified Data.Set as Set
+import           Data.Stack
+import qualified Data.Text as Text
+import qualified Filesystem.Path as Path
+import qualified Filesystem.Path.CurrentOS as Path
 import           Text.Parsec
 import           Text.Parsec.String                         (Parser)
 
+import           Language.Grift.Common.Syntax (Operator (..), ScopeF (..))
+import qualified Language.Grift.Common.Syntax as C
 import           Language.Grift.Source.Parser.WithSourcePos
 import           Language.Grift.Source.Syntax
 
@@ -84,7 +95,7 @@ opnParser n s op = do
   char ')'
   return $ Ann src $ Op op es
 
-c1Parser :: String -> (L1 -> ExpF1 (Ann SourcePos ExpF1)) -> Parser L1
+c1Parser :: String -> (L1 -> ExpF1 L1) -> Parser L1
 c1Parser s op = do
   src <- getPosition
   try (string ('(':s))
@@ -92,7 +103,7 @@ c1Parser s op = do
   char ')'
   return $ Ann src $ op e
 
-c2Parser :: String -> (L1 -> L1 -> ExpF1 (Ann SourcePos ExpF1)) -> Parser L1
+c2Parser :: String -> (L1 -> L1 -> ExpF1 L1) -> Parser L1
 c2Parser s op = do
   src <- getPosition
   try (string ('(':s))
@@ -102,7 +113,7 @@ c2Parser s op = do
   char ')'
   return $ Ann src $ op e1 e2
 
-c3Parser :: String -> (L1 -> L1 -> L1 -> ExpF1 (Ann SourcePos ExpF1)) -> Parser L1
+c3Parser :: String -> (L1 -> L1 -> L1 -> ExpF1 L1) -> Parser L1
 c3Parser s op = do
   src <- getPosition
   try (string ('(':s))
@@ -138,12 +149,12 @@ ifParser,varParser,appParser,opsParser,intParser,boolParser
    mderefParser,mrefsetParser,vectParser,vectrefParser,
    vectsetParser,gvectParser,gvectrefParser,
    gvectsetParser,mvectParser,mvectrefParser,mvectsetParser,asParser,
-   beginParser,repeatParser,unitParser,timeParser,topLevParser,
+   beginParser,repeatParser,unitParser,timeParser,
    floatParser,charParser,tupleParser,tupleProjParser,dconstParser,
-   dlamParser,bindParser,moduleParser :: Parser L1
+   dlamParser :: Parser L1
 
+bindParser :: Parser Bind1
 bindParser = do
-  src <- getPosition
   c <- char '[' <|> char '('
   x <- idParser
   whitespace
@@ -151,7 +162,7 @@ bindParser = do
   t <- option (Ann tsrc BlankTy) (id <$ char ':' <* whitespace <*> typeParser <* whitespace)
   e <- expParser
   if c == '[' then char ']' else char ')'
-  return $ Ann src $ Bind x t e
+  return $ Bind x t e
 
 unitParser = Ann <$> getPosition <*> (P Unit <$ try (string "()"))
 
@@ -392,14 +403,14 @@ repeatParser = do
   char ')'
   return $ Ann src $ Repeat x acci start end b acce acct
 
-topLevParser = do
-  src <- getPosition
-  ds <- sepEndBy (moduleParser <|> dlamParser <|> dconstParser) whitespace
+scopeParser :: Parser Scope1
+scopeParser = do
+  ds <- sepEndBy (dlamParser <|> dconstParser) whitespace
   es <- sepEndBy expParser whitespace
-  return $ Ann src $ TopLevel ds es
+  return $ Scope ds es
 
+moduleParser :: Parser Module1
 moduleParser = do
-  src <- getPosition
   try $ string "(module"
   whitespace
   name <- idParser
@@ -411,7 +422,7 @@ moduleParser = do
   defs <- sepEndBy (dlamParser <|> dconstParser) whitespace
   exps <- sepEndBy expParser whitespace
   char ')'
-  return $ Ann src $ Module name imports exports defs exps
+  return $ C.Module name imports exports defs exps
 
 expParser :: Parser L1
 expParser = try floatParser
@@ -516,11 +527,75 @@ typeParser = charTyParser
              <|> recTyParser
              <|> varTyParser
 
-griftParser :: Parser L1
-griftParser = id <$ whitespace <*> topLevParser <* whitespace <* eof
+programModuleParser, programScriptParser, griftFileParser:: Parser ParsedGriftFile1
+programModuleParser = Module <$> moduleParser
+programScriptParser = Script <$> scopeParser
 
-parser :: String -> Either ParseError L1
-parser = parse griftParser ""
+griftFileParser = id <$ whitespace <*> (programModuleParser <|> programScriptParser) <* whitespace <* eof
 
--- main :: IO ()
--- main = parseTest griftParser "(letrec ([x : (Int Int -> Int) (lambda ([x : Int] [y : Int]) : Int (* x (: -2 Int)))] [y : Bool #f]) (let ([z : Int 5] [t : () ()]) (if (> 3 1) (x z) 0)))"
+parseGriftFile :: String -> Either ParseError ParsedGriftFile1
+parseGriftFile = parse griftFileParser ""
+
+data ParseGriftError = UnexpectedScriptInModules FilePath
+
+instance Show ParseGriftError where
+  show (UnexpectedScriptInModules path) =
+    "expected " ++ path ++ " to be a module file but it is not"
+
+instance Exception ParseError
+instance Exception ParseGriftError
+
+data ParseGriftState = ParseGriftState
+  { visitedModules :: Set.Set Path.FilePath
+  , toBeVisitedModules :: Stack Path.FilePath
+  }
+
+parseGriftProgram :: FilePath -> IO Program1
+parseGriftProgram = parseMain
+  where
+    addImports :: Stack Path.FilePath -> Path.FilePath -> [Name] -> Stack Path.FilePath
+    addImports stack path modulePaths =
+      let coerceFilePath = Path.fromText . Text.pack
+          parentPath = Path.parent path
+      in foldl' stackPush stack $ map ((`Path.addExtension` "grift") . Path.append parentPath . coerceFilePath) modulePaths
+
+    parseMain path = do
+      code <- readFile path
+      case parseGriftFile code of
+        Left err -> throwIO err
+        Right e ->
+          case e of
+            Script script -> return $ C.Script script
+            Module m -> do
+              let filePath = Path.fromText $ Text.pack path
+              let initialState = ParseGriftState Set.empty $ addImports stackNew filePath $ C.moduleImports m
+              (C.Modules . (m:)) <$> ST.evalStateT parseModules initialState
+
+    -- TODO: investigate piggy backing on the parser state
+    parseModules :: ST.StateT ParseGriftState IO [Module1]
+    parseModules = do
+      state <- ST.get
+      let result = stackPop $ toBeVisitedModules state
+      case result of
+        Nothing -> return []
+        Just (stack, path) -> do
+          let state' = state { toBeVisitedModules = stack }
+          ST.put state'
+          let visitedModulesSet = visitedModules state'
+          let visited = Set.member path visitedModulesSet
+          if visited
+             then return []
+             else do
+               let state'' = state' { visitedModules = Set.insert path visitedModulesSet }
+               ST.put state''
+               let filePathStr = Path.encodeString path
+               code <- ST.liftIO $ readFile filePathStr
+               case parseGriftFile code of
+                 Left err -> ST.liftIO $ throwIO err
+                 Right e ->
+                   case e of
+                     Script _ -> ST.liftIO $ throwIO $ UnexpectedScriptInModules filePathStr
+                     Module m -> do
+                             ST.put (state'' { toBeVisitedModules = addImports stack path $ C.moduleImports m })
+                             modules <- parseModules
+                             return (m : modules)

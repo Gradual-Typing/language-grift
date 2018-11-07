@@ -9,28 +9,20 @@
 
 module Language.Grift.Source.Syntax(
   Name
-  , Operator(..)
   , Type(..)
   , ExpF(..)
+  , BindF (..)
   , Prim(..)
   , Ann(..)
   , (⊑)) where
 
 import           Algebra.Lattice
 import           Data.Bifunctor.TH
+import           Language.Grift.Common.Syntax
 
-type Name = String
 type Args = [Name]
 
-data Operator = Plus | Minus | Mult | Div | Eq | Ge | Gt | Le | Lt
-              | ShiftR | ShiftL | BAnd | BOr
-              | PlusF | MinusF | MultF | DivF| ModuloF | AbsF | LtF
-              | LeF | EqF | GtF | GeF | MinF | MaxF | RoundF | FloorF
-              | CeilingF | TruncateF | SinF | CosF | TanF | AsinF
-              | AcosF | AtanF | LogF | ExpF | SqrtF | ExptF
-              | FloatToInt | IntToFloat | CharToInt | ReadInt
-              | ReadFloat | ReadChar | DisplayChar
-                deriving (Eq,Show)
+data BindF t e = Bind Name t e
 
 -- base functor (two-level types trick)
 -- structure operator
@@ -38,12 +30,9 @@ data ExpF t e =
   DConst Name t e
   | DLam Name Args e t
   | Lam Args e t
-  | Bind Name t e
   | As e t
   | Repeat Name Name e e e e t
   | Op Operator [e]
-  | TopLevel [e] [e]
-  | Module Name [Name] [Name] [e] [e] -- module name [names of imported modules] [exported definitions] [definitions] [expressions]
   | If e e e
   | App e [e]
   | Ref e
@@ -66,24 +55,23 @@ data ExpF t e =
   | MVectSet e e e
   | Tuple [e]
   | TupleProj e Int
-  | Let [e] e
-  | Letrec [e] e
+  | Let [BindF t e] e
+  | Letrec [BindF t e] e
   | Begin [e] e
   | Time e
   | P Prim
 
-data Prim =
-  Var Name
-  | N Integer
-  | F Double String
-  | B Bool
-  | Unit
-  | C String
-  deriving (Eq, Show)
+deriving instance Functor (BindF t)
+deriving instance Foldable (BindF t)
+deriving instance Traversable (BindF t)
 
 deriving instance Functor (ExpF t)
 deriving instance Foldable (ExpF t)
 deriving instance Traversable (ExpF t)
+
+$(deriveBifunctor ''BindF)
+$(deriveBifoldable ''BindF)
+$(deriveBitraversable ''BindF)
 
 $(deriveBifunctor ''ExpF)
 $(deriveBifoldable ''ExpF)
@@ -110,7 +98,7 @@ data Type t =
   | RecTy Name t
   deriving (Eq,Show,Functor,Foldable,Traversable)
 
-deriving instance (Show a, Show (e (Ann a e))) => Show (Ann a e)
+deriving instance (Show a, Show t) => Show (BindF t (Ann a (ExpF t)))
 deriving instance (Show a, Show t) => Show (ExpF t (Ann a (ExpF t)))
 
 instance (MeetSemiLattice t, Show t) => MeetSemiLattice (Type t) where
@@ -161,5 +149,3 @@ instance (JoinSemiLattice t, MeetSemiLattice t, Show t) => Lattice (Type t) wher
 
 (⊑) :: (Eq t, Show t, JoinSemiLattice t) => Type t -> Type t -> Bool
 (⊑) = joinLeq
-
-data Ann a e = Ann a (e (Ann a e))
