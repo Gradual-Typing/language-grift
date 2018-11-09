@@ -189,6 +189,25 @@ ifParser = do
   char ')'
   return $ Ann src $ If e1 e2 e3
 
+condClauseParser :: Parser (L1, L1)
+condClauseParser = do
+  char '['
+  whitespace
+  cond <- expParser
+  whitespace
+  e <- expParser
+  whitespace
+  char ']'
+  return (cond, e)
+
+condParser = do
+  src <- getPosition
+  try (string "(cond")
+  whitespace
+  es <- sepEndBy condClauseParser whitespace
+  char ')'
+  return $ Ann src $ Cond es
+
 varParser = annotate ((P . Var) <$> idParser)
 
 appParser = do
@@ -297,9 +316,9 @@ letParser = do
   binds <- sepEndBy bindParser whitespace
   char ')'
   whitespace
-  e <- expParser
+  es <- sepEndBy expParser whitespace
   char ')'
-  return $ Ann src $ Let binds e
+  return $ Ann src $ Let binds es
 
 letrecParser = do
   src <- getPosition
@@ -309,9 +328,9 @@ letrecParser = do
   binds <- sepEndBy bindParser whitespace
   char ')'
   whitespace
-  e <- expParser
+  es <- sepEndBy expParser whitespace
   char ')'
-  return $ Ann src $ Letrec binds e
+  return $ Ann src $ Letrec binds es
 
 timeParser = c1Parser "time " Time
 refParser = c1Parser "box " Ref
@@ -434,6 +453,7 @@ expParser = try floatParser
             <|> try varParser
             <|> opsParser
             <|> ifParser
+            <|> condParser
             <|> lambdaParser
             <|> refParser
             <|> derefParser

@@ -34,6 +34,7 @@ data ExpF t e =
   | Repeat Name Name e e e e t
   | Op Operator [e]
   | If e e e
+  | Cond [(e, e)]
   | App e [e]
   | Ref e
   | DeRef e
@@ -55,8 +56,8 @@ data ExpF t e =
   | MVectSet e e e
   | Tuple [e]
   | TupleProj e Int
-  | Let [BindF t e] e
-  | Letrec [BindF t e] e
+  | Let [BindF t e] [e]
+  | Letrec [BindF t e] [e]
   | Begin [e] e
   | Time e
   | P Prim
