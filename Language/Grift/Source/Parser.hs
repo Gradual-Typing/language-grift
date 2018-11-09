@@ -10,7 +10,7 @@ module Language.Grift.Source.Parser (parseGriftProgram) where
 import           Control.Exception                          (Exception, throwIO)
 import           Control.Monad                              (void)
 import qualified Control.Monad.State.Lazy as ST
-import           Data.List                                  (foldl', reverse)
+import           Data.List                                  (foldl')
 import qualified Data.Set as Set
 import           Data.Stack
 import qualified Data.Text as Text
@@ -536,7 +536,7 @@ griftFileParser = id <$ whitespace <*> (programModuleParser <|> programScriptPar
 parseGriftFile :: String -> Either ParseError ParsedGriftFile1
 parseGriftFile = parse griftFileParser ""
 
-data ParseGriftError = UnexpectedScriptInModules FilePath
+newtype ParseGriftError = UnexpectedScriptInModules FilePath
 
 instance Show ParseGriftError where
   show (UnexpectedScriptInModules path) =
@@ -557,7 +557,7 @@ parseGriftProgram = parseMain
     addImports stack path modulePaths =
       let coerceFilePath = Path.fromText . Text.pack
           parentPath = Path.parent path
-      in foldl' stackPush stack $ map ((`Path.addExtension` "grift") . Path.append parentPath . coerceFilePath) modulePaths
+      in foldr (flip stackPush . (`Path.addExtension` "grift") . Path.append parentPath . coerceFilePath) stack modulePaths
 
     parseMain path = do
       code <- readFile path
@@ -569,7 +569,7 @@ parseGriftProgram = parseMain
             Module m -> do
               let filePath = Path.fromText $ Text.pack path
               let initialState = ParseGriftState Set.empty $ addImports stackNew filePath $ C.moduleImports m
-              (C.Modules . reverse . (m:)) <$> ST.evalStateT parseModules initialState
+              (C.Modules . (++ [m])) <$> ST.evalStateT parseModules initialState
 
     -- TODO: investigate piggy backing on the parser state
     parseModules :: ST.StateT ParseGriftState IO [Module1]
