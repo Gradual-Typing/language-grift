@@ -10,6 +10,7 @@ module Language.Grift.Source.Parser (parseGriftProgram) where
 import           Control.Exception                          (Exception, throwIO)
 import           Control.Monad                              (void)
 import qualified Control.Monad.State.Lazy as ST
+import qualified Data.DList as DL
 import           Data.List                                  (foldl')
 import qualified Data.Set as Set
 import           Data.Stack
@@ -553,11 +554,11 @@ data ParseGriftState = ParseGriftState
 parseGriftProgram :: FilePath -> IO Program1
 parseGriftProgram = parseMain
   where
-    addImports :: Stack Path.FilePath -> Path.FilePath -> [Name] -> Stack Path.FilePath
-    addImports stack path modulePaths =
+    addImports :: Stack Path.FilePath -> Path.FilePath -> Module1 -> Stack Path.FilePath
+    addImports stack path modul =
       let coerceFilePath = Path.fromText . Text.pack
           parentPath = Path.parent path
-      in foldr (flip stackPush . (`Path.addExtension` "grift") . Path.append parentPath . coerceFilePath) stack modulePaths
+      in foldr (flip stackPush . (`Path.addExtension` "grift") . Path.append parentPath . coerceFilePath) stack $ C.moduleImports modul
 
     parseMain path = do
       code <- readFile path
@@ -568,26 +569,23 @@ parseGriftProgram = parseMain
             Script script -> return $ C.Script script
             Module m -> do
               let filePath = Path.fromText $ Text.pack path
-              let initialState = ParseGriftState Set.empty $ addImports stackNew filePath $ C.moduleImports m
-              (C.Modules . (++ [m])) <$> ST.evalStateT parseModules initialState
+              let initialState = ParseGriftState Set.empty $ addImports stackNew filePath m
+              (C.Modules . DL.toList . (`DL.snoc` m)) <$> ST.evalStateT parseModules initialState
 
     -- TODO: investigate piggy backing on the parser state
-    parseModules :: ST.StateT ParseGriftState IO [Module1]
+    parseModules :: ST.StateT ParseGriftState IO (DL.DList Module1)
     parseModules = do
       state <- ST.get
       let result = stackPop $ toBeVisitedModules state
       case result of
-        Nothing -> return []
+        Nothing -> return DL.empty
         Just (stack, path) -> do
-          let state' = state { toBeVisitedModules = stack }
-          ST.put state'
-          let visitedModulesSet = visitedModules state'
-          let visited = Set.member path visitedModulesSet
-          if visited
+          ST.modify (\s -> s { toBeVisitedModules = stack })
+          let visitedModulesSet = visitedModules state
+          if Set.member path visitedModulesSet
              then parseModules
              else do
-               let state'' = state' { visitedModules = Set.insert path visitedModulesSet }
-               ST.put state''
+               ST.modify (\s -> s { visitedModules = Set.insert path visitedModulesSet })
                let filePathStr = Path.encodeString path
                code <- ST.liftIO $ readFile filePathStr
                case parseGriftFile code of
@@ -596,6 +594,8 @@ parseGriftProgram = parseMain
                    case e of
                      Script _ -> ST.liftIO $ throwIO $ UnexpectedScriptInModules filePathStr
                      Module m -> do
-                             ST.put (state'' { toBeVisitedModules = addImports stack path $ C.moduleImports m })
-                             modules <- parseModules
-                             return (m : modules)
+                       ST.modify (\s -> s { toBeVisitedModules = addImports stackNew path m })
+                       dependences <- parseModules
+                       ST.modify (\s -> s { toBeVisitedModules = addImports stack path m })
+                       dependants <- parseModules
+                       return $ DL.append dependences $ DL.cons m dependants

@@ -25,6 +25,7 @@ library
   build-depends:       base
                      , bifunctors
                      , containers
+                     , dlist
                      , lattices
                      , mtl
                      , parsec
