@@ -9,8 +9,6 @@ module Language.Grift.Source.Utils
   , stripSnd
   ) where
 
-import           Data.Monoid           (Sum (..))
-
 import           Language.Grift.Source.Syntax
 
 
@@ -24,7 +22,7 @@ para f (Ann a e) = f a $ fmap keepCopy e where
 bottomUp :: forall a b e. Functor e => (a -> e (Ann b e) -> b) -> Ann a e -> Ann b e
 bottomUp fn = cata (\a e -> Ann (fn a e) e)
 
-getSnd :: forall a e. Ann (a, Sum Int) e -> Sum Int
+getSnd :: forall a b e. Ann (a, b) e -> b
 getSnd (Ann (_, n) _) = n
 
 getFst :: forall a b. Ann (a, b) Type -> a
