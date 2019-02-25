@@ -8,6 +8,6 @@ import           Language.Grift.Source.Syntax
 
 type WithLoc a = Ann SourcePos a
 
-type TypeWithLoc = WithLoc Type
+type TypeWithLoc = WithLoc TypeF
 type ExpF1 = ExpF TypeWithLoc
 type L1 = WithLoc ExpF1

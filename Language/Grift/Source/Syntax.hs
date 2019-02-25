@@ -1,20 +1,38 @@
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DefaultSignatures    #-}
 {-# LANGUAGE DeriveFoldable       #-}
 {-# LANGUAGE DeriveFunctor        #-}
 {-# LANGUAGE DeriveTraversable    #-}
+{-# LANGUAGE EmptyCase            #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE KindSignatures       #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE InstanceSigs         #-}
+{-# LANGUAGE NoStarIsType         #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE StandaloneDeriving   #-}
 {-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Language.Grift.Source.Syntax(
   Name
   , Operator(..)
   , Type(..)
+  , TypeF(..)
+  , SType
+  , Sing (..)
   , ExpF(..)
   , Prim(..)
   , Ann(..)
   , (⊑)) where
+
+import           Data.Functor.Foldable.TH
+import           Data.Singletons.TH
 
 import           Algebra.Lattice
 import           Data.Bifunctor.TH
@@ -32,47 +50,46 @@ data Operator = Plus | Minus | Mult | Div | Eq | Ge | Gt | Le | Lt
               | ReadFloat | ReadChar | DisplayChar
                 deriving (Eq,Show)
 
--- base functor (two-level types trick)
--- structure operator
-data ExpF t e =
-  DConst Name t e
-  | DLam Name Args e t
-  | Lam Args e t
-  | Bind Name t e
-  | As e t
-  | Repeat Name Name e e e e t
-  | Op Operator [e]
-  | TopLevel [e] [e]
-  | If e e e
-  | App e [e]
-  | Ref e
-  | DeRef e
-  | Assign e e
-  | GRef e
-  | GDeRef e
-  | GAssign e e
-  | MRef e
-  | MDeRef e
-  | MAssign e e
-  | Vect e e -- length value
-  | VectRef e e -- vect pos
-  | VectSet e e e -- vect pos value
-  | GVect e e -- length value
-  | GVectRef e e -- vect pos
-  | GVectSet e e e -- vect pos value
-  | MVect e e
-  | MVectRef e e
-  | MVectSet e e e
-  | Tuple [e]
-  | TupleProj e Int
-  | Let [e] e
-  | Letrec [e] e
-  | Begin [e] e
-  | Time e
+data Exp t =
+  DConst Name t (Exp t)
+  | DLam Name Args (Exp t) t
+  | Lam Args (Exp t) t
+  | Bind Name t (Exp t)
+  | As (Exp t) t
+  | Repeat Name Name (Exp t) (Exp t) (Exp t) (Exp t) t
+  | Op Operator [Exp t]
+  | TopLevel [Exp t] [Exp t]
+  | If (Exp t) (Exp t) (Exp t)
+  | App (Exp t) [Exp t]
+  | Ref (Exp t)
+  | DeRef (Exp t)
+  | Assign (Exp t) (Exp t)
+  | GRef (Exp t)
+  | GDeRef (Exp t)
+  | GAssign (Exp t) (Exp t)
+  | MRef (Exp t)
+  | MDeRef (Exp t)
+  | MAssign (Exp t) (Exp t)
+  | Vect (Exp t) (Exp t) -- length value
+  | VectRef (Exp t) (Exp t) -- vect pos
+  | VectSet (Exp t) (Exp t) (Exp t) -- vect pos value
+  | GVect (Exp t) (Exp t) -- length value
+  | GVectRef (Exp t) (Exp t) -- vect pos
+  | GVectSet (Exp t) (Exp t) (Exp t) -- vect pos value
+  | MVect (Exp t) (Exp t)
+  | MVectRef (Exp t) (Exp t)
+  | MVectSet (Exp t) (Exp t) (Exp t)
+  | Tuple [Exp t]
+  | TupleProj (Exp t) Int
+  | Let [Exp t] (Exp t)
+  | Letrec [Exp t] (Exp t)
+  | Begin [Exp t] (Exp t)
+  | Time (Exp t)
   | P Prim
 
 data Prim =
-  Var Name
+  Var String Int
+  | Global String
   | N Integer
   | F Double String
   | B Bool
@@ -80,37 +97,40 @@ data Prim =
   | C String
   deriving (Eq, Show)
 
-deriving instance Functor (ExpF t)
-deriving instance Foldable (ExpF t)
-deriving instance Traversable (ExpF t)
+makeBaseFunctor ''Exp
 
 $(deriveBifunctor ''ExpF)
 $(deriveBifoldable ''ExpF)
 $(deriveBitraversable ''ExpF)
 
-data Type t =
-  BlankTy
-  | Dyn
-  | CharTy
-  | IntTy
-  | FloatTy
-  | BoolTy
-  | UnitTy
-  | FunTy [t] t
-  | ArrTy [t] t
-  | RefTy t
-  | GRefTy t
-  | MRefTy t
-  | VectTy t
-  | GVectTy t
-  | MVectTy t
-  | TupleTy [t]
-  deriving (Eq,Show,Functor)
+$(singletons [d|
+               data Type =
+                 BlankTy
+                 | Dyn
+                 | CharTy
+                 | IntTy
+                 | FloatTy
+                 | BoolTy
+                 | UnitTy
+                 | FunTy [Type] Type
+                 | ArrTy [Type] Type
+                 | RefTy Type
+                 | GRefTy Type
+                 | MRefTy Type
+                 | VectTy Type
+                 | GVectTy Type
+                 | MVectTy Type
+                 | TupleTy [Type]
+                 deriving (Eq,Show)
+  |])
+
+makeBaseFunctor ''Type
 
 deriving instance (Show a, Show (e (Ann a e))) => Show (Ann a e)
 deriving instance (Show a, Show (t (Ann a t))) => Show (ExpF (Ann a t) (Ann a (ExpF (Ann a t))))
+deriving instance (Show a, Show (t (Ann a t))) => Show (TypeF (Ann a t))
 
-instance (MeetSemiLattice t, Show t) => MeetSemiLattice (Type t) where
+instance MeetSemiLattice Type where
   Dyn /\ t                           = t
   t /\ Dyn                           = t
   CharTy /\ CharTy                   = CharTy
@@ -132,7 +152,7 @@ instance (MeetSemiLattice t, Show t) => MeetSemiLattice (Type t) where
   t1 /\ t2                             =
     error ("/\\: undefined on " ++ show t1 ++ " and " ++ show t2)
 
-instance (JoinSemiLattice t, Show t) => JoinSemiLattice (Type t) where
+instance JoinSemiLattice Type where
   Dyn \/ _                           = Dyn
   _ \/ Dyn                           = Dyn
   CharTy \/ CharTy                   = CharTy
@@ -154,9 +174,9 @@ instance (JoinSemiLattice t, Show t) => JoinSemiLattice (Type t) where
   t1 \/ t2                           =
     error ("\\/: undefined on " ++ show t1 ++ " and " ++ show t2)
 
-instance (JoinSemiLattice t, MeetSemiLattice t, Show t) => Lattice (Type t) where
+instance Lattice Type where
 
-(⊑) :: (Eq t, Show t, JoinSemiLattice t) => Type t -> Type t -> Bool
+(⊑) :: Type -> Type -> Bool
 (⊑) = joinLeq
 
 data Ann a e = Ann a (e (Ann a e))
